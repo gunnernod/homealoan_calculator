@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เครื่องคำนวณผ่อนบ้าน</title>
+    <!-- โหลด Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- [CHANGED] โหลดฟอนต์ Mitr (ลายมืออ่านง่าย) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap">
+    <style>
+        body {
+            font-family: 'Mitr', sans-serif;
+        }
+        /* สร้างสไตล์ให้เหมือนแอป */
+        .app-container {
+            width: 100%; /* [อัปเดต] ทำให้เต็มความกว้างเสมอ */
+            max-width: 420px; /* ขนาดหน้าจอมือถือโดยประมาณ */
+            height: 90vh;
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        .form-label {
+            @apply block text-sm font-medium text-gray-700 mb-1;
+        }
+        .form-input, .form-select {
+            @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500;
+        }
+
+        /* [NEW] สไตล์สำหรับ Loading Spinner */
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #6366F1; /* Indigo */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-white flex items-center justify-center min-h-screen">
+
+    <!-- จำลองกรอบมือถือ -->
+    <div class="app-container bg-pink-100 rounded-2xl shadow-2xl p-6 flex flex-col">
+        
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-blue-800">คำนวณผ่อนบ้าน/คอนโด</h1>
+            <p class="text-gray-500">ประเมินยอดผ่อนชำระต่อเดือน</p>
+        </header>
+
+        <!-- Calculator Form -->
+        <main class="flex-grow">
+            <div class="space-y-4">
+                <!-- [NEW] เงินเดือน -->
+                <div>
+                    <label for="income" class="form-label">เงินเดือน (บาท)</label>
+                    <input type="number" id="income" class="form-input" placeholder="เช่น 50000" value="50000">
+                </div>
+                
+                <!-- [NEW] ค่าใช้จ่าย -->
+                <div>
+                    <label for="expenses" class="form-label">ค่าใช้จ่าย/ภาระผ่อนอื่นๆ (บาท)</label>
+                    <input type="number" id="expenses" class="form-input" placeholder="เช่น 15000" value="15000">
+                </div>
+
+                <!-- วงเงินกู้ -->
+                <div>
+                    <label for="loanAmount" class="form-label">วงเงินกู้ (บาท)</label>
+                    <input type="number" id="loanAmount" class="form-input" placeholder="เช่น 3000000" value="3000000">
+                </div>
+
+                <!-- ระยะเวลาผ่อน -->
+                <div>
+                    <label for="loanTerm" class="form-label">ระยะเวลาผ่อน (ปี)</label>
+                    <input type="number" id="loanTerm" class="form-input" placeholder="เช่น 30" value="30">
+                </div>
+
+                <!-- ดรอปดาวน์ธนาคาร -->
+                <div>
+                    <label for="bankRate" class="form-label">เลือกโปรโมชั่น (ดอกเบี้ยเฉลี่ย 3 ปี)</label>
+                    <select id="bankRate" class="form-select">
+                        <!-- ตัวเลือกจะถูกเพิ่มโดย JavaScript -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- [NEW] Error Message -->
+            <div id="error-message" class="text-red-500 text-sm mt-4 text-center hidden"></div>
+
+            <!-- ปุ่มคำนวณ -->
+            <button id="calculateButton" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 mt-6">
+                คำนวณ
+            </button>
+
+            <!-- ผลลัพธ์ (Redesigned) -->
+            <div id="resultContainer" class="mt-6 bg-gray-50 p-6 rounded-lg hidden">
+                <h3 class="text-xl font-semibold text-center text-gray-800 mb-4">สรุปผลการคำนวณ</h3>
+                
+                <div class="space-y-3">
+                    <!-- ค่างวด -->
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">ค่างวดผ่อนชำระ</span>
+                        <span id="monthlyPayment" class="text-2xl font-bold text-blue-800">0</span>
+                    </div>
+                    
+                    <!-- รายได้สุทธิ -->
+                    <div class="flex justify-between items-center border-t pt-3">
+                        <span class="text-gray-600">รายได้สุทธิ (หลังหักค่าใช้จ่าย)</span>
+                        <span id="netIncome" class="text-2xl font-bold text-gray-700">0</span>
+                    </div>
+
+                    <!-- สถานะ -->
+                    <div id="affordabilityStatus" class="text-center p-3 rounded-md mt-4">
+                        <span id="affordabilityText" class="font-semibold"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- [NEW] ปุ่มขอคำแนะนำ AI -->
+            <button id="aiAdviceButton" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300 mt-4 hidden">
+                ✨ ขอคำแนะนำจาก AI
+            </button>
+
+            <!-- [NEW] กล่องแสดงผลคำแนะนำ AI -->
+            <div id="aiAdviceContainer" class="mt-4 bg-indigo-50 p-6 rounded-lg hidden">
+                <h3 class="text-xl font-semibold text-center text-indigo-800 mb-4">คำแนะนำจาก AI</h3>
+                <!-- Loading Spinner -->
+                <div id="aiLoading" class="loader"></div>
+                <!-- AI Result -->
+                <div id="aiAdviceResult" class="text-gray-700 prose prose-sm max-w-none"></div>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        // --- ส่วนของ JavaScript ---
+
+// ... existing code ... -->
+        // 2. DOM Elements
+        const incomeInput = document.getElementById('income'); // [NEW]
+        const expensesInput = document.getElementById('expenses'); // [NEW]
+        const loanAmountInput = document.getElementById('loanAmount');
+        const loanTermInput = document.getElementById('loanTerm');
+        const bankRateSelect = document.getElementById('bankRate');
+        const calculateButton = document.getElementById('calculateButton');
+        const resultContainer = document.getElementById('resultContainer');
+        const monthlyPaymentOutput = document.getElementById('monthlyPayment');
+        const errorMessage = document.getElementById('error-message'); // [NEW]
+        const netIncomeOutput = document.getElementById('netIncome'); // [NEW]
+        const affordabilityStatus = document.getElementById('affordabilityStatus'); // [NEW]
+        const affordabilityText = document.getElementById('affordabilityText'); // [NEW]
+
+        // [NEW] AI Elements
+        const aiAdviceButton = document.getElementById('aiAdviceButton');
+        const aiAdviceContainer = document.getElementById('aiAdviceContainer');
+        const aiLoading = document.getElementById('aiLoading');
+        const aiAdviceResult = document.getElementById('aiAdviceResult');
+
+        // [NEW] ตัวแปรสำหรับเก็บผลลัพธ์ชั่วคราวให้ AI
+        let currentCalculation = {
+            income: 0,
+            expenses: 0,
+            loanAmount: 0,
+            loanTerm: 0,
+            monthlyPayment: 0,
+            netIncome: 0,
+            statusText: ""
+        };
+
+        // 3. ฟังก์ชัน: โหลดโปรโมชั่นลงในดรอปดาวน์
+        function populateBankRates() {
+// ... existing code ... -->
+            });
+        }
+
+        // 4. ฟังก์ชัน: คำนวณค่างวดและความสามารถในการผ่อน (Updated)
+        function runCalculation() {
+            // ซ่อนข้อผิดพลาดและผลลัพธ์เก่าก่อน
+            errorMessage.classList.add('hidden');
+            aiAdviceButton.classList.add('hidden'); // [NEW] ซ่อนปุ่ม AI
+            aiAdviceContainer.classList.add('hidden'); // [NEW] ซ่อนผลลัพธ์ AI
+
+            // ดึงค่าจากฟอร์ม
+            const income = parseFloat(incomeInput.value);
+// ... existing code ... -->
+            const annualRate = parseFloat(bankRateSelect.value); // ดอกเบี้ยต่อปี (%)
+
+            // ตรวจสอบค่า
+            let errors = [];
+// ... existing code ... -->
+            if (errors.length > 0) {
+                errorMessage.textContent = errors.join(' | ');
+                errorMessage.classList.remove('hidden');
+                resultContainer.classList.add('hidden'); // ซ่อนผลลัพธ์ถ้ามี error
+                return;
+            }
+
+            // --- คำนวณค่างวด (Mortgage) ---
+// ... existing code ... -->
+            } else {
+                monthlyPayment = numerator / denominator;
+            }
+            const finalMonthlyPayment = Math.ceil(monthlyPayment);
+
+            // --- คำนวณความสามารถ (Affordability) ---
+            const netIncome = income - expenses;
+// ... existing code ... -->
+            } else { // ค่างวด < 70% ของรายได้สุทธิ
+                statusText = 'ผ่อนไหว (ค่างวดอยู่ในเกณฑ์ดี)';
+                statusColorClasses = ['bg-green-100', 'text-green-700'];
+            }
+
+            // 5. แสดงผลลัพธ์
+            monthlyPaymentOutput.textContent = finalMonthlyPayment.toLocaleString('th-TH') + ' บ./ด.';
+            netIncomeOutput.textContent = Math.ceil(netIncome).toLocaleString('th-TH') + ' บ./ด.';
+            
+            affordabilityText.textContent = statusText;
+// ... existing code ... -->
+            // เพิ่ม class สีใหม่
+            affordabilityStatus.classList.add(...statusColorClasses); 
+
+            resultContainer.classList.remove('hidden'); // แสดงกล่องผลลัพธ์
+
+            // [NEW] บันทึกข้อมูลสำหรับ AI และแสดงปุ่ม
+            currentCalculation = {
+                income: income,
+                expenses: expenses,
+                loanAmount: P,
+                loanTerm: termYears,
+                monthlyPayment: finalMonthlyPayment,
+                netIncome: netIncome,
+                statusText: statusText
+            };
+            aiAdviceButton.classList.remove('hidden');
+        }
+
+        // 6. เชื่อมต่อ Event Listeners
+// ... existing code ... -->
+        document.addEventListener('DOMContentLoaded', populateBankRates);
+
+        // เมื่อคลิกปุ่ม "คำนวณ"
+        calculateButton.addEventListener('click', runCalculation);
+
+        // [NEW] 7. ฟังก์ชันสำหรับ Gemini AI
+
+        // เมื่อคลิกปุ่ม "ขอคำแนะนำ AI"
+        aiAdviceButton.addEventListener('click', getAIAdvice);
+
+        async function getAIAdvice() {
+            // แสดงกล่องและตัวโหลด
+            aiAdviceContainer.classList.remove('hidden');
+            aiLoading.classList.remove('hidden');
+            aiAdviceResult.innerHTML = ''; // ล้างผลลัพธ์เก่า
+
+            // เตรียมข้อมูลส่งให้ AI
+            const { income, expenses, loanAmount, loanTerm, monthlyPayment, netIncome, statusText } = currentCalculation;
+            
+            // คำนวณรายได้สุทธิหลังผ่อน
+            const netIncomeAfterPayment = netIncome - monthlyPayment;
+
+            // System Prompt: กำหนดบทบาทให้ AI
+            const systemPrompt = `
+คุณคือ "ที่ปรึกษาการเงินอารมณ์ดี" และเป็นผู้เชี่ยวชาญด้านสินเชื่อบ้านในประเทศไทย
+- ตอบเป็นภาษาไทยที่เข้าใจง่าย เป็นกันเอง แต่ให้ข้อมูลที่ถูกต้อง
+- หน้าที่ของคุณคือวิเคราะห์สถานะการเงินของผู้ใช้และให้คำแนะนำที่ "ปฏิบัติได้จริง"
+- ห้ามให้คำแนะนำทางการเงินที่เจาะจง (เช่น "ให้ซื้อหุ้นตัวนั้น") แต่ให้คำแนะนำเชิงหลักการ (เช่น "ควรพิจารณาลดหนี้บัตรเครดิต")
+- สรุปเป็นประเด็นชัดเจนโดยใช้ bullet points (ใช้ * สำหรับ markdown)
+- ต้องสุภาพและให้กำลังใจเสมอ
+            `;
+
+            // User Query: ส่งข้อมูลของผู้ใช้ไป
+            const userQuery = `
+สวัสดีครับ/ค่ะ ช่วยวิเคราะห์สถานะการเงินของผม/ดิฉัน สำหรับการกู้ซื้อบ้านหน่อยครับ:
+- เงินเดือน: ${income.toLocaleString('th-TH')} บาท
+- ค่าใช้จ่าย/ภาระผ่อนอื่นๆ (ก่อนผ่อนบ้าน): ${expenses.toLocaleString('th-TH')} บาท
+- รายได้สุทธิ (ก่อนผ่อนบ้าน): ${netIncome.toLocaleString('th-TH')} บาท
+- วงเงินกู้ที่ต้องการ: ${loanAmount.toLocaleString('th-TH')} บาท
+- ระยะเวลาผ่อน: ${loanTerm} ปี
+- ค่างวดผ่อนบ้านที่คำนวณได้: ${monthlyPayment.toLocaleString('th-TH')} บาท/เดือน
+- สถานะเบื้องต้น: ${statusText}
+- **เงินเดือนที่จะเหลือหลังหักค่าใช้จ่ายและค่างวดบ้านใหม่: ${netIncomeAfterPayment.toLocaleString('th-TH')} บาท**
+
+ช่วยให้คำแนะนำแบบตรงไปตรงมาหน่อยครับว่าสถานะของผมเป็นอย่างไร และผมควรทำอย่างไรต่อไป?
+(เช่น ผมไหวไหม? ควรลดวงเงินกู้ไหม? หรือมีคำแนะนำอื่นๆ?)
+            `;
+
+            try {
+                const aiResponse = await callGeminiAPI(systemPrompt, userQuery);
+                aiAdviceResult.innerHTML = formatMarkdown(aiResponse); // แสดงผลลัพธ์ที่จัดรูปแบบแล้ว
+            } catch (error) {
+                console.error('Error calling Gemini API:', error);
+                aiAdviceResult.innerHTML = '<p class="text-red-600">ขออภัยค่ะ เกิดข้อผิดพลาดในการเรียก AI กรุณาลองใหม่อีกครั้ง</p>';
+            } finally {
+                // ซ่อนตัวโหลดเมื่อเสร็จสิ้น
+                aiLoading.classList.add('hidden');
+            }
+        }
+
+        /**
+         * [NEW] ฟังก์ชันหลักในการเรียก Gemini API
+         * ใช้โมเดล gemini-2.5-flash-preview-09-2025
+         */
+        async function callGeminiAPI(systemPrompt, userQuery, retries = 3, delay = 1000) {
+            const apiKey = ""; // API Key จะถูกแทรกโดยอัตโนมัติ (ไม่จำเป็นต้องกรอก)
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    // ถ้าเซิร์ฟเวอร์มีปัญหา (เช่น 500, 503) ให้ลองใหม่
+                    if (response.status >= 500 && retries > 0) {
+                        throw new Error(`Server error ${response.status}, retrying...`);
+                    }
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    return candidate.content.parts[0].text;
+                } else {
+                    // กรณี AI บล็อกคำตอบ หรือคำตอบว่างเปล่า
+                    throw new Error(candidate?.finishReason || 'No content generated');
+                }
+            } catch (error) {
+                console.warn(error.message);
+                if (retries > 0) {
+                    await exponentialBackoff(delay);
+                    return callGeminiAPI(systemPrompt, userQuery, retries - 1, delay * 2);
+                } else {
+                    throw error; // ส่ง error สุดท้ายออกไป
+                }
+            }
+        }
+
+        // [NEW] ฟังก์ชันหน่วงเวลา (Exponential Backoff)
+        function exponentialBackoff(delay) {
+            return new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        // [NEW] ฟังก์ชันแปลง Markdown ง่ายๆ เป็น HTML
+        function formatMarkdown(text) {
+            if (!text) return "";
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold **text**
+                .replace(/\*(.*?)\*/g, '<strong>$1</strong>')   // Bold *text* (สำหรับ bullet points)
+                .replace(/(\r\n|\r|\n)/g, '<br>'); // Newlines
+        }
+
+    </script>
+</body>
+</html>
+
+
+
+
